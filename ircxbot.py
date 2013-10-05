@@ -49,6 +49,10 @@ class IRCExchangeBot:
         self.socket.shutdown()
         self.socket.close()
     
+    def get_nick(self, line):
+        """Gets the nick from the line."""
+        return line.split("!~")[0][1:]
+    
     def master_exec(self, command):
         """Executes a command from the master issued as a message."""
         if command.startswith(":quit"):
@@ -62,12 +66,20 @@ class IRCExchangeBot:
         if line.startswith("PING"):
             self.socket.send("PONG %s\r\n" % line.split(":")[1])
         # Handle public messages.
-        msg = line.split("PRIVMSG %s :" % self.channel)
-        if len(msg) == 2:
+        if ("PRIVMSG %s :" % self.channel) in line:
+            msg = line.split("PRIVMSG %s :" % self.channel)
             if msg[0].startswith(":%s!" % self.master):
                 self.master_exec(msg[1])
             # Save the message and the nick to the outbound queue.
-            self.send_outbound("%s: %s" % (msg[0].split("!~")[0][1:], msg[1]))
+            self.send_outbound("%s: %s" % (self.get_nick(msg[0]), msg[1]))
+      else:
+        # Handle joins.
+        if ("JOIN :%s" % self.channel) in line:
+            self.send_outbound("%s joined %s in %s." % \
+                (self.get_nick(line), self.channel, self.host))
+        if ("PART %s" % self.channel) in line:
+            self.send_outbound("%s parted %s in %s." % \
+                (self.get_nick(line), self.channel, self.host))
     
     def print_buffer(self, line):
         """Prints a line received to the buffer."""
