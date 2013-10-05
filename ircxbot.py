@@ -16,7 +16,7 @@ class IRCExchangeBot:
     host = "irc.freenode.net"
     port = 6667
     channel = "#temp-chan-876"
-    nick = "SaWaBot13"
+    nick = "IrCxBoTpY"
     master = "Samhain13"
     socket = None
     socket_on = False
@@ -59,6 +59,7 @@ class IRCExchangeBot:
             self.disconnect()
         if command.startswith(":say"):
             self.send_channel(command[5:])
+        # Add more "executables" here.
     
     def parse_buffer(self, line):
         """Parses the received line and decides what to do with it."""
@@ -72,14 +73,20 @@ class IRCExchangeBot:
                 self.master_exec(msg[1])
             # Save the message and the nick to the outbound queue.
             self.send_outbound("%s: %s" % (self.get_nick(msg[0]), msg[1]))
-      else:
-        # Handle joins.
-        if ("JOIN :%s" % self.channel) in line:
-            self.send_outbound("%s joined %s in %s." % \
-                (self.get_nick(line), self.channel, self.host))
-        if ("PART %s" % self.channel) in line:
-            self.send_outbound("%s parted %s in %s." % \
-                (self.get_nick(line), self.channel, self.host))
+        # Handle private messages from master.
+        elif ("PRIVMSG %s :" % self.nick) in line:
+            msg = line.split("PRIVMSG %s :" % self.nick)
+            if msg[0].startswith(":%s!" % self.master):
+                self.send_outbound(msg[1])
+                self.send_channel(msg[1])
+        # Handle joins, parts, etc.
+        else:
+            if ("JOIN :%s" % self.channel) in line:
+                self.send_outbound("%s joined %s in %s." % \
+                    (self.get_nick(line), self.channel, self.host))
+            if ("PART %s" % self.channel) in line:
+                self.send_outbound("%s parted %s in %s." % \
+                    (self.get_nick(line), self.channel, self.host))
     
     def print_buffer(self, line):
         """Prints a line received to the buffer."""
