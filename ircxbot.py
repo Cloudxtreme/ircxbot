@@ -46,12 +46,12 @@ class IRCExchangeBot:
     def disconnect(self):
         """Disconnects from the IRC network."""
         self.socket_on = False
-        self.socket.shutdown()
+        self.socket.shutdown(socket.SHUT_RDWR)
         self.socket.close()
     
     def get_nick(self, line):
         """Gets the nick from the line."""
-        return line.split("!~")[0][1:]
+        return "\x02%s\x0F" % line.split("!~")[0][1:]
     
     def master_exec(self, command):
         """Executes a command from the master issued as a message."""
@@ -81,10 +81,10 @@ class IRCExchangeBot:
                 self.send_channel(msg[1])
         # Handle joins, parts, etc.
         else:
-            if ("JOIN :%s" % self.channel) in line:
+            if line.endswith("JOIN %s" % self.channel):
                 self.send_outbound("%s joined %s in %s." % \
                     (self.get_nick(line), self.channel, self.host))
-            if ("PART %s" % self.channel) in line:
+            if ("PART %s" % self.channel) in self.channel:
                 self.send_outbound("%s parted %s in %s." % \
                     (self.get_nick(line), self.channel, self.host))
     
