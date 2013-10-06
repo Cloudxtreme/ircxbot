@@ -23,6 +23,7 @@ class IRCExchangeBot:
     socket_timeout = 15.0
     inbound_file = "inbound_file.txt"
     outbound_file = "outbound_file.txt"
+    quit_message = "Bye."
     view_lines = True  # True to display recv in the terminal.
     
     def connect(self):
@@ -45,6 +46,7 @@ class IRCExchangeBot:
     
     def disconnect(self):
         """Disconnects from the IRC network."""
+        self.socket.send("QUIT %s\r\n" % self.quit_message)
         self.socket_on = False
         self.socket.shutdown(socket.SHUT_RDWR)
         self.socket.close()
@@ -57,8 +59,6 @@ class IRCExchangeBot:
         """Executes a command from the master issued as a message."""
         if command.startswith(":quit"):
             self.disconnect()
-        if command.startswith(":say"):
-            self.send_channel(command[5:])
         # Add more "executables" here.
     
     def parse_buffer(self, line):
@@ -69,29 +69,32 @@ class IRCExchangeBot:
         # Handle public messages.
         if ("PRIVMSG %s :" % self.channel) in line:
             msg = line.split("PRIVMSG %s :" % self.channel)
-            if msg[0].startswith(":%s!" % self.master):
-                self.master_exec(msg[1])
             # Save the message and the nick to the outbound queue.
             self.send_outbound("%s: %s" % (self.get_nick(msg[0]), msg[1]))
-        # Handle private messages from master.
+        # Handle private messages from the master.
         elif ("PRIVMSG %s :" % self.nick) in line:
             msg = line.split("PRIVMSG %s :" % self.nick)
             if msg[0].startswith(":%s!" % self.master):
-                self.send_outbound(msg[1])
-                self.send_channel(msg[1])
+                # Commands are prefixed with ":", send them to exec.
+                if msg[1].startswith(":"):
+                    self.master_exec(msg[1])
+                # For non-commands, simply send them to the channels.
+                else:
+                    self.send_outbound(msg[1])
+                    self.send_channel(msg[1])
         # Handle joins, parts, etc.
         else:
-            if line.endswith("JOIN %s" % self.channel):
+            if len(line.split("JOIN :%s" % self.channel)) == 2 or \
+                len(line.split("JOIN %s" % self.channel)) == 2:
                 self.send_outbound("%s joined %s in %s." % \
                     (self.get_nick(line), self.channel, self.host))
-            if ("PART %s" % self.channel) in self.channel:
+            if len(line.split("PART :%s" % self.channel)) == 2 or \
+                len(line.split("PART %s" % self.channel)) == 2:
                 self.send_outbound("%s parted %s in %s." % \
                     (self.get_nick(line), self.channel, self.host))
-    
-    def print_buffer(self, line):
-        """Prints a line received to the buffer."""
-        if self.view_lines:
-            print line
+            if len(line.split("QUIT :")) == 2 or len(line.split("QUIT")) == 2:
+                self.send_outbound("%s quit %s in %s." % \
+                    (self.get_nick(line), self.channel, self.host))
     
     def receive(self):
         """Reads any text received from the IRC server."""
@@ -101,7 +104,8 @@ class IRCExchangeBot:
         temp = readbuffer.split("\n")
         readbuffer = temp.pop( )
         for line in temp:
-            self.print_buffer(line)
+            if self.view_lines:
+                print line
             self.parse_buffer(line)
     
     def send_inbound(self):
@@ -123,13 +127,6 @@ class IRCExchangeBot:
     def send_channel(self, message):
         """Sends a message to the channel."""
         self.socket.send("PRIVMSG %s :%s\r\n" % (self.channel, message))
-    
-    def set_host(self, host="irc.freenode.net", port=6667):
-        """Shortcut to setting the host and port. Should be done before
-        self.connect().
-        """
-        self.host = host
-        self.port = port
 
 
 if __name__ == "__main__":
