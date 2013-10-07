@@ -59,6 +59,13 @@ class IRCExchangeBot:
         """Executes a command from the master issued as a message."""
         if command.startswith(":quit"):
             self.disconnect()
+        if command.startswith(":nick"):
+            self.nick = command.split(" ")[-1]
+            self.socket.send("NICK %s" % self.nick)
+        if command.startswith(":exec "):  # Hardcore IRC command.
+            if self.view_lines:
+                print command[6:]
+            self.socket.send("%s\r\n" % command[6:])
         # Add more "executables" here.
     
     def parse_buffer(self, line):
